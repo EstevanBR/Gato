@@ -12,12 +12,14 @@ struct GatoPlugin: CompilerPlugin {
 
 public enum GatoError: CustomStringConvertible, Error {
     case onlyApplicableToFunction
+    case onlyApplicableToPrivateFunction
     case fileArgumentExists
     case lineArgumentExists
     
     public var description: String {
         switch self {
         case .onlyApplicableToFunction: "@Gato can only be applied to a function"
+        case .onlyApplicableToPrivateFunction: "@Gate can only be applied to a `private` function"
         case .fileArgumentExists: "@Gato requires no `file` argument in the function"
         case .lineArgumentExists: "@Gato requires no `line` argument in the function"
         }
@@ -32,6 +34,10 @@ public struct GatoMacro: PeerMacro {
     ) throws -> [SwiftSyntax.DeclSyntax] {
         guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
             throw GatoError.onlyApplicableToFunction
+        }
+        
+        guard let _ = funcDecl.modifiers.first(where: { $0.name.text == "private" }) else {
+            throw GatoError.onlyApplicableToPrivateFunction
         }
         
         var signature = funcDecl.signature
@@ -58,36 +64,35 @@ public struct GatoMacro: PeerMacro {
         var body = funcDecl.body
         var statements = CodeBlockItemListSyntax()
         
-        for statement in body?.statements ?? [] {
-            guard let funcCall = statement.item.as(FunctionCallExprSyntax.self),
-                  let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
-                  fileLineFunctionNames.contains(funcName) else {
+        for statement in body?.statements ?? [] {            
+            if let funcCall = statement.item.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                try addFileLine(funcCall: funcCall, statements: &statements)
+            } else
+            
+            if let funcCall = statement.item.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
                 statements.append(statement)
-                continue
+                try addFileLine(funcCall: funcCall, statements: &statements)
+            } else
+            
+            if let funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                statements.append(statement)
+                try addFileLine(funcCall: funcCall, statements: &statements)
+            } else
+            
+            if let funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                statements.append(statement)
+                try addFileLine(funcCall: funcCall, statements: &statements)
+            } else {
+                statements.append(statement)
             }
-            
-            var newFuncCall = funcCall
-            
-            guard funcCall.arguments.hasFile == false else {
-                throw GatoError.fileArgumentExists
-            }
-            
-            guard funcCall.arguments.hasLine == false else {
-                throw GatoError.lineArgumentExists
-            }
-            
-            if var previousArgument = funcCall.arguments.last {
-                previousArgument.trailingComma = .commaToken()
-                newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
-                newFuncCall.arguments.append(previousArgument)
-            }
-            
-            newFuncCall.arguments.append(makeFileArgument())
-            newFuncCall.arguments.append(makeLineArgument())
-            
-            guard let item = newFuncCall.as(CodeBlockItemSyntax.Item.self) else { continue }
-            
-            statements.append(CodeBlockItemSyntax(item: item))
         }
         
         body?.statements = statements
@@ -233,4 +238,29 @@ private func makeLineArgument() -> LabeledExprSyntax {
         colon: .colonToken(),
         expression: DeclReferenceExprSyntax(baseName: .init(stringLiteral: "line"))
     )
+}
+
+private func addFileLine(funcCall: FunctionCallExprSyntax, statements: inout CodeBlockItemListSyntax) throws {
+    var newFuncCall = funcCall
+    
+    guard funcCall.arguments.hasFile == false else {
+        throw GatoError.fileArgumentExists
+    }
+    
+    guard funcCall.arguments.hasLine == false else {
+        throw GatoError.lineArgumentExists
+    }
+    
+    if var previousArgument = funcCall.arguments.last {
+        previousArgument.trailingComma = .commaToken()
+        newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
+        newFuncCall.arguments.append(previousArgument)
+    }
+    
+    newFuncCall.arguments.append(makeFileArgument())
+    newFuncCall.arguments.append(makeLineArgument())
+    
+    guard let item = newFuncCall.as(CodeBlockItemSyntax.Item.self) else { return }
+    
+    statements.append(CodeBlockItemSyntax(item: item))
 }

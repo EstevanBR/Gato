@@ -100,4 +100,59 @@ final class GatoTests: XCTestCase {
             macros: testMacros
         )
     }
+    
+    func testGatoMacroWithGenericFunction() throws {
+        assertMacroExpansion(
+            """
+            extension UIResponder {
+                @Gato(defaults: false)
+                func findChild<Success: UIAccessibilityIdentification>(
+                    withA11yId a11y: String
+                ) throws -> Success {
+                    let child = Mirror(reflecting: self)
+                        .children
+                        .compactMap { $0.value as? Success }
+                        .first { $0.accessibilityIdentifier == a11y }
+                    
+                    return try XCTUnwrap(
+                        child,
+                        "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)"
+                    )
+                }
+            }
+            """,
+            expandedSource: """
+            extension UIResponder {
+                func findChild<Success: UIAccessibilityIdentification>(
+                    withA11yId a11y: String
+                ) throws -> Success {
+                    let child = Mirror(reflecting: self)
+                        .children
+                        .compactMap { $0.value as? Success }
+                        .first { $0.accessibilityIdentifier == a11y }
+                    
+                    return try XCTUnwrap(
+                        child,
+                        "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)"
+                    )
+                }
+
+                func findChild<Success: UIAccessibilityIdentification>(
+                    withA11yId a11y: String, file: StaticString, line: UInt
+                ) throws -> Success {
+                    let child = Mirror(reflecting: self)
+                        .children
+                        .compactMap { $0.value as? Success }
+                        .first { $0.accessibilityIdentifier == a11y }
+                    
+                    return try XCTUnwrap(
+                        child,
+                        "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)", file: file, line: line
+                    )
+                }
+            }
+            """,
+            macros: testMacros
+        )
+    }
 }

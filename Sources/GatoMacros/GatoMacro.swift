@@ -12,10 +12,14 @@ struct GatoPlugin: CompilerPlugin {
 
 public enum GatoError: CustomStringConvertible, Error {
     case onlyApplicableToFunction
+    case fileArgumentExists
+    case lineArgumentExists
     
     public var description: String {
         switch self {
         case .onlyApplicableToFunction: "@Gato can only be applied to a function"
+        case .fileArgumentExists: "@Gato requires no `file` argument in the function"
+        case .lineArgumentExists: "@Gato requires no `line` argument in the function"
         }
     }
 }
@@ -64,31 +68,22 @@ public struct GatoMacro: PeerMacro {
             
             var newFuncCall = funcCall
             
-            if funcCall.arguments.hasFile == false {
-                if var previousArgument = funcCall.arguments.last {
-                    previousArgument.trailingComma = .commaToken()
-                    newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
-                    newFuncCall.arguments.append(previousArgument)
-                }
-                newFuncCall.arguments.append(
-                    .init(
-                        label: .init(stringLiteral: "file"),
-                        colon: .colonToken(),
-                        expression: DeclReferenceExprSyntax(baseName: .init(stringLiteral: "file")),
-                        trailingComma: .commaToken()
-                    )
-                )
+            guard funcCall.arguments.hasFile == false else {
+                throw GatoError.fileArgumentExists
             }
             
-            if funcCall.arguments.hasLine == false {
-                newFuncCall.arguments.append(
-                    .init(
-                        label: .init(stringLiteral: "line"),
-                        colon: .colonToken(),
-                        expression: DeclReferenceExprSyntax(baseName: .init(stringLiteral: "line"))
-                    )
-                )
+            guard funcCall.arguments.hasLine == false else {
+                throw GatoError.lineArgumentExists
             }
+            
+            if var previousArgument = funcCall.arguments.last {
+                previousArgument.trailingComma = .commaToken()
+                newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
+                newFuncCall.arguments.append(previousArgument)
+            }
+            
+            newFuncCall.arguments.append(makeFileArgument())
+            newFuncCall.arguments.append(makeLineArgument())
             
             guard let item = newFuncCall.as(CodeBlockItemSyntax.Item.self) else { continue }
             
@@ -101,6 +96,7 @@ public struct GatoMacro: PeerMacro {
             DeclSyntax(
                 FunctionDeclSyntax(
                     name: funcDecl.name,
+                    genericParameterClause: funcDecl.genericParameterClause,
                     signature: signature,
                     body: body
                 )
@@ -219,5 +215,22 @@ private func makeLineParameter(setDefaultValue: Bool) -> FunctionParameterSyntax
                 arguments: .init()
             )
         ) : nil
+    )
+}
+
+private func makeFileArgument() -> LabeledExprSyntax {
+    .init(
+        label: .init(stringLiteral: "file"),
+        colon: .colonToken(),
+        expression: DeclReferenceExprSyntax(baseName: .init(stringLiteral: "file")),
+        trailingComma: .commaToken()
+    )
+}
+
+private func makeLineArgument() -> LabeledExprSyntax {
+    .init(
+        label: .init(stringLiteral: "line"),
+        colon: .colonToken(),
+        expression: DeclReferenceExprSyntax(baseName: .init(stringLiteral: "line"))
     )
 }

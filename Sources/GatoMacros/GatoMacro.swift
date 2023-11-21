@@ -109,10 +109,21 @@ public struct GatoMacro: PeerMacro {
     }
 }
 
-// TODO: add other XCTAssert method names here
 private let fileLineFunctionNames: Set<String> = [
     "XCTFail",
-    "XCTAssertEquals"
+    "XCTAssertEqual",
+    "XCTAssertEqualWithAccuracy",
+    "XCTAssertNotEqual",
+    "XCTAssertGreaterThan",
+    "XCTAssertLessThan",
+    "XCTAssertLessThanOrEqual",
+    "XCTAssertTrue",
+    "XCTAssertFalse",
+    "XCTAssertNil",
+    "XCTAssertNotNil",
+    "XCTUnwrap",
+    "XCTAssertThrowsError",
+    "XCTAssertNoThrow",
 ]
 
 private extension FunctionParameterListSyntax {

@@ -2,45 +2,33 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-// Macro implementations build for the host, so the corresponding module is not available when cross-compiling. Cross-compiled tests may still make use of the macro itself in end-to-end tests.
-#if canImport(GatoMacros)
 import GatoMacros
 
-let testMacros: [String: Macro.Type] = [
-    "stringify": StringifyMacro.self,
+private let testMacros: [String: Macro.Type] = [
+    "Gato": GatoMacro.self,
 ]
-#endif
 
 final class GatoTests: XCTestCase {
-    func testMacro() throws {
-        #if canImport(GatoMacros)
+    func testGatoMacroWithDefaults() throws {
         assertMacroExpansion(
             """
-            #stringify(a + b)
-            """,
+            @Gato
+            func failWithFileAndLine() {
+                XCTFail()
+            }
+            """
+            ,
             expandedSource: """
-            (a + b, "a + b")
-            """,
-            macros: testMacros
-        )
-        #else
-        throw XCTSkip("macros are only supported when running tests for the host platform")
-        #endif
-    }
+                func failWithFileAndLine() {
+                    XCTFail()
+                }
 
-    func testMacroWithStringLiteral() throws {
-        #if canImport(GatoMacros)
-        assertMacroExpansion(
-            #"""
-            #stringify("Hello, \(name)")
-            """#,
-            expandedSource: #"""
-            ("Hello, \(name)", #""Hello, \(name)""#)
-            """#,
+                func failWithFileAndLine(file: StaticString = #file, line: UInt = #line) {
+                    XCTFail(file: file, line: line)
+                }
+                """
+            ,
             macros: testMacros
         )
-        #else
-        throw XCTSkip("macros are only supported when running tests for the host platform")
-        #endif
     }
 }

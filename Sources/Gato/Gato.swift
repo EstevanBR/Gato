@@ -2,4 +2,4 @@
 // https://docs.swift.org/swift-book
 
 @attached(peer, names: overloaded)
-public macro Gato() = #externalMacro(module: "GatoMacros", type: "GatoMacro")
+public macro Gato(defaults: Bool) = #externalMacro(module: "GatoMacros", type: "GatoMacro")

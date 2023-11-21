@@ -32,15 +32,22 @@ public struct GatoMacro: PeerMacro {
         
         var signature = funcDecl.signature
         
+        let gatoDefaults = funcDecl.gatoDefaults
         if signature.parameterClause.parameters.hasFile == false {
+            if var lastParam = signature.parameterClause.parameters.last {
+                signature.parameterClause.parameters = FunctionParameterListSyntax(signature.parameterClause.parameters.dropLast())
+                lastParam.trailingComma = .commaToken()
+                signature.parameterClause.parameters.append(lastParam)
+                
+            }
             signature.parameterClause.parameters.append(
-                makeFileParameter(setDefaultValue: true)
+                makeFileParameter(setDefaultValue: gatoDefaults)
             )
         }
         
         if signature.parameterClause.parameters.hasLine == false {
             signature.parameterClause.parameters.append(
-                makeLineParameter(setDefaultValue: true)
+                makeLineParameter(setDefaultValue: gatoDefaults)
             )
         }
         
@@ -49,7 +56,8 @@ public struct GatoMacro: PeerMacro {
         
         for statement in body?.statements ?? [] {
             guard let funcCall = statement.item.as(FunctionCallExprSyntax.self),
-                  funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text == "XCTFail" else {
+                  let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+                  fileLineFunctionNames.contains(funcName) else {
                 statements.append(statement)
                 continue
             }
@@ -57,6 +65,11 @@ public struct GatoMacro: PeerMacro {
             var newFuncCall = funcCall
             
             if funcCall.arguments.hasFile == false {
+                if var previousArgument = funcCall.arguments.last {
+                    previousArgument.trailingComma = .commaToken()
+                    newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
+                    newFuncCall.arguments.append(previousArgument)
+                }
                 newFuncCall.arguments.append(
                     .init(
                         label: .init(stringLiteral: "file"),
@@ -96,6 +109,12 @@ public struct GatoMacro: PeerMacro {
     }
 }
 
+// TODO: add other XCTAssert method names here
+private let fileLineFunctionNames: Set<String> = [
+    "XCTFail",
+    "XCTAssertEquals"
+]
+
 private extension FunctionParameterListSyntax {
     var hasFile: Bool {
         !allSatisfy { $0.firstName != "file" }
@@ -113,6 +132,31 @@ private extension LabeledExprListSyntax {
     
     var hasLine: Bool {
         !allSatisfy { $0.label != "line" }
+    }
+}
+
+private extension FunctionDeclSyntax {
+    var gatoDefaults: Bool {
+        guard let gatoAttribute = attributes
+            .first (where: {
+                $0.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Gato"
+            })?
+            .as(AttributeSyntax.self) else {
+            return true
+        }
+        
+        guard let defaultsArgument = gatoAttribute
+                .arguments?
+                .as(LabeledExprListSyntax.self)?
+                .compactMap({ $0.as(LabeledExprSyntax.self) })
+                .first(where: { $0.label?.text == "defaults" }),
+              let useDefaultsString = defaultsArgument
+                .expression
+                .as(BooleanLiteralExprSyntax.self)?
+                .literal.text else {
+            return true
+        }
+        return Bool(useDefaultsString) ?? true
     }
 }
 

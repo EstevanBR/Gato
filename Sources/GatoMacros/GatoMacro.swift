@@ -62,40 +62,18 @@ public struct GatoMacro: PeerMacro {
         }
         
         var body = funcDecl.body
-        var statements = CodeBlockItemListSyntax()
         
-        for statement in body?.statements ?? [] {            
-            if let funcCall = statement.item.as(FunctionCallExprSyntax.self),
-               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
-               fileLineFunctionNames.contains(funcName) {
-                try addFileLine(funcCall: funcCall, statements: &statements)
-            } else
+        try body?.statements.addFileLineToStatements()
             
-            if let funcCall = statement.item.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
-               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
-               fileLineFunctionNames.contains(funcName) {
-                statements.append(statement)
-                try addFileLine(funcCall: funcCall, statements: &statements)
-            } else
+        body?.statements.fileAndLineFunctions { functionCallExprSyntax in
+            var functionCallExprSyntax = functionCallExprSyntax
+            try? addFileLine(funcCall: &functionCallExprSyntax)
             
-            if let funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(FunctionCallExprSyntax.self),
-               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
-               fileLineFunctionNames.contains(funcName) {
-                statements.append(statement)
-                try addFileLine(funcCall: funcCall, statements: &statements)
-            } else
+            guard let item = functionCallExprSyntax.as(CodeBlockItemSyntax.Item.self) else { return }
             
-            if let funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
-               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
-               fileLineFunctionNames.contains(funcName) {
-                statements.append(statement)
-                try addFileLine(funcCall: funcCall, statements: &statements)
-            } else {
-                statements.append(statement)
-            }
+            let itemSyntax = CodeBlockItemSyntax(item: item)
+            print(itemSyntax)
         }
-        
-        body?.statements = statements
         
         return [
             DeclSyntax(
@@ -107,6 +85,67 @@ public struct GatoMacro: PeerMacro {
                 )
             )
         ]
+    }
+}
+
+extension CodeBlockItemListSyntax {
+    mutating func addFileLineToStatements() throws {
+        var statements = CodeBlockItemListSyntax()
+        for statement in self {
+            if var funcCall = statement.item.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                
+                try addFileLine(funcCall: &funcCall)
+                if let item = funcCall.as(CodeBlockItemSyntax.Item.self) {
+                    statements.append(CodeBlockItemSyntax(item: item))
+                }
+                
+            } else
+            if var funcCall = statement.item.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                
+                try addFileLine(funcCall: &funcCall)
+                if let item = funcCall.as(CodeBlockItemSyntax.Item.self) {
+                    statements.append(CodeBlockItemSyntax(item: item))
+                }
+            } else
+            
+            if var funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                
+                try addFileLine(funcCall: &funcCall)
+                if let item = funcCall.as(CodeBlockItemSyntax.Item.self) {
+                    statements.append(CodeBlockItemSyntax(item: item))
+                }
+            } else
+            
+            if var funcCall = statement.item.as(ReturnStmtSyntax.self)?.expression?.as(TryExprSyntax.self)?.expression.as(FunctionCallExprSyntax.self),
+               let funcName = funcCall.calledExpression.as(DeclReferenceExprSyntax.self)?.baseName.text,
+               fileLineFunctionNames.contains(funcName) {
+                
+                try addFileLine(funcCall: &funcCall)
+                if let item = funcCall.as(CodeBlockItemSyntax.Item.self) {
+                    statements.append(CodeBlockItemSyntax(item: item))
+                }
+            } else {
+                statements.append(statement)
+            }
+        }
+        
+        self = statements
+    }
+}
+
+extension CodeBlockItemListSyntax {
+    func fileAndLineFunctions(_ callback: (FunctionCallExprSyntax) -> ()) {
+        tokens(viewMode: .all)
+            .compactMap({ $0.as(TokenSyntax.self) })
+            .filter({ fileLineFunctionNames.contains($0.text) })
+            .compactMap({ $0.parent?.parent?.as(FunctionCallExprSyntax.self) })
+            .forEach({ callback($0) })
     }
 }
 
@@ -178,14 +217,14 @@ private extension FunctionDeclSyntax {
         }
         
         guard let defaultsArgument = gatoAttribute
-                .arguments?
-                .as(LabeledExprListSyntax.self)?
-                .compactMap({ $0.as(LabeledExprSyntax.self) })
-                .first(where: { $0.label?.text == "defaults" }),
+            .arguments?
+            .as(LabeledExprListSyntax.self)?
+            .compactMap({ $0.as(LabeledExprSyntax.self) })
+            .first(where: { $0.label?.text == "defaults" }),
               let useDefaultsString = defaultsArgument
-                .expression
-                .as(BooleanLiteralExprSyntax.self)?
-                .literal.text else {
+            .expression
+            .as(BooleanLiteralExprSyntax.self)?
+            .literal.text else {
             return true
         }
         return Bool(useDefaultsString) ?? true
@@ -240,9 +279,7 @@ private func makeLineArgument() -> LabeledExprSyntax {
     )
 }
 
-private func addFileLine(funcCall: FunctionCallExprSyntax, statements: inout CodeBlockItemListSyntax) throws {
-    var newFuncCall = funcCall
-    
+private func addFileLine(funcCall: inout FunctionCallExprSyntax) throws {
     guard funcCall.arguments.hasFile == false else {
         throw GatoError.fileArgumentExists
     }
@@ -253,14 +290,10 @@ private func addFileLine(funcCall: FunctionCallExprSyntax, statements: inout Cod
     
     if var previousArgument = funcCall.arguments.last {
         previousArgument.trailingComma = .commaToken()
-        newFuncCall.arguments = LabeledExprListSyntax(newFuncCall.arguments.dropLast())
-        newFuncCall.arguments.append(previousArgument)
+        funcCall.arguments = LabeledExprListSyntax(funcCall.arguments.dropLast())
+        funcCall.arguments.append(previousArgument)
     }
     
-    newFuncCall.arguments.append(makeFileArgument())
-    newFuncCall.arguments.append(makeLineArgument())
-    
-    guard let item = newFuncCall.as(CodeBlockItemSyntax.Item.self) else { return }
-    
-    statements.append(CodeBlockItemSyntax(item: item))
+    funcCall.arguments.append(makeFileArgument())
+    funcCall.arguments.append(makeLineArgument())
 }

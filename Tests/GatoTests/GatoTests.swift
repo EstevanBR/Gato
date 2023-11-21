@@ -159,7 +159,7 @@ final class GatoTests: XCTestCase {
             extension XCTestCase {
                 @Gato(defaults: true)
                 private func trackForMemoryLeaks(_ instance: AnyObject) {
-                    addTeardownBlock { [instance] in
+                    addTeardownBlock { [weak instance] in
                         XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
                     }
                 }
@@ -168,13 +168,13 @@ final class GatoTests: XCTestCase {
             expandedSource: """
             extension XCTestCase {
                 private func trackForMemoryLeaks(_ instance: AnyObject) {
-                    addTeardownBlock { [instance] in
+                    addTeardownBlock { [weak instance] in
                         XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
                     }
                 }
             
                 func trackForMemoryLeaks(_ instance: AnyObject, file: StaticString = #file, line: UInt = #line) {
-                    addTeardownBlock { [instance] in
+                    addTeardownBlock { [weak instance] in
                         XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.", file: file, line: line)
                     }
                 }
@@ -184,8 +184,9 @@ final class GatoTests: XCTestCase {
         )
     }
 
-/*
+
     func testGatoMacroWithGenericFunction() throws {
+        throw XCTSkip("not implemented")
         assertMacroExpansion(
 """
 extension UIResponder {
@@ -219,5 +220,4 @@ extension UIResponder {
             indentationWidth: .tab
         )
     }
- */
 }

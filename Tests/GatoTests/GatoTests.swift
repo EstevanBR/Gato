@@ -9,7 +9,7 @@ private let testMacros: [String: Macro.Type] = [
 ]
 
 final class GatoTests: XCTestCase {
-    func testGatoMacroWithDefaults() throws {
+    func testGatoMacroWithXCTFailAndNoDefaults() throws {
         assertMacroExpansion(
             """
             @Gato
@@ -32,7 +32,7 @@ final class GatoTests: XCTestCase {
         )
     }
     
-    func testGatoMacroWithXCTAssertEquals() throws {
+    func testGatoMacroWithXCTAssertEqualsAndNoDefaults() throws {
         assertMacroExpansion(
             """
             @Gato
@@ -55,7 +55,7 @@ final class GatoTests: XCTestCase {
         )
     }
     
-    func testGatoMacroWithoutDefaultsTrue() throws {
+    func testGatoMacroWithXCTFailAndDefaultsFalse() throws {
         assertMacroExpansion(
             """
             @Gato(defaults: false)
@@ -78,10 +78,10 @@ final class GatoTests: XCTestCase {
         )
     }
     
-    func testGatoMacroWithoutDefaultsFalse() throws {
+    func testGatoMacroWithXCTFailAndDefaultsTrue() throws {
         assertMacroExpansion(
             """
-            @Gato(defaults: false)
+            @Gato(defaults: true)
             func failWithFileAndLine() {
                 XCTFail()
             }
@@ -92,7 +92,7 @@ final class GatoTests: XCTestCase {
                     XCTFail()
                 }
 
-                func failWithFileAndLine(file: StaticString, line: UInt) {
+                func failWithFileAndLine(file: StaticString = #file, line: UInt = #line) {
                     XCTFail(file: file, line: line)
                 }
                 """

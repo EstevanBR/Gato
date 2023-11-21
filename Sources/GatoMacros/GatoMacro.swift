@@ -109,21 +109,41 @@ public struct GatoMacro: PeerMacro {
     }
 }
 
+// TODO: XCTSkip.init(String?, file: StaticString, line: UInt
+
 private let fileLineFunctionNames: Set<String> = [
-    "XCTFail",
-    "XCTAssertEqual",
-    "XCTAssertEqualWithAccuracy",
-    "XCTAssertNotEqual",
-    "XCTAssertGreaterThan",
-    "XCTAssertLessThan",
-    "XCTAssertLessThanOrEqual",
+    // Boolean Assertions - https://developer.apple.com/documentation/xctest/boolean_assertions
+    "XCTAssert",
     "XCTAssertTrue",
     "XCTAssertFalse",
+    
+    // Nil and Non-Nil Assertions - https://developer.apple.com/documentation/xctest/nil_and_non-nil_assertions
     "XCTAssertNil",
     "XCTAssertNotNil",
     "XCTUnwrap",
+    
+    // Equality and Inequality Assertions - https://developer.apple.com/documentation/xctest/equality_and_inequality_assertions
+    "XCTAssertEqual",
+    "XCTAssertNotEqual",
+    "XCTAssertIdentical",
+    "XCTAssertNotIdentical",
+    
+    // Comparable Value Assertions - https://developer.apple.com/documentation/xctest/comparable_value_assertions
+    "XCTAssertGreaterThan",
+    "XCTAssertGreaterThanOrEqual",
+    "XCTAssertLessThanOrEqual",
+    "XCTAssertLessThan",
+    
+    // Error Assertions - https://developer.apple.com/documentation/xctest/error_assertions
     "XCTAssertThrowsError",
     "XCTAssertNoThrow",
+    
+    // Unconditional Test Failures - https://developer.apple.com/documentation/xctest/unconditional_test_failures
+    "XCTFail",
+    
+    // Methods for Skipping Tests - https://developer.apple.com/documentation/xctest/methods_for_skipping_tests
+    "XCTSkipIf",
+    "XCTSkipUnless"
 ]
 
 private extension FunctionParameterListSyntax {

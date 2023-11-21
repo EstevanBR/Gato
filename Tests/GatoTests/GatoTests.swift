@@ -32,22 +32,22 @@ final class GatoTests: XCTestCase {
         )
     }
     
-    func testGatoMacroWithXCTAssertEqualsAndNoDefaults() throws {
+    func testGatoMacroWithXCTAssertEqualAndNoDefaults() throws {
         assertMacroExpansion(
             """
             @Gato
             func expectEqualWithFileAndLine(_ a: Bool, _ b: Bool) {
-                XCTAssertEquals(a, b)
+                XCTAssertEqual(a, b)
             }
             """
             ,
             expandedSource: """
                 func expectEqualWithFileAndLine(_ a: Bool, _ b: Bool) {
-                    XCTAssertEquals(a, b)
+                    XCTAssertEqual(a, b)
                 }
 
                 func expectEqualWithFileAndLine(_ a: Bool, _ b: Bool, file: StaticString = #file, line: UInt = #line) {
-                    XCTAssertEquals(a, b, file: file, line: line)
+                    XCTAssertEqual(a, b, file: file, line: line)
                 }
                 """
             ,

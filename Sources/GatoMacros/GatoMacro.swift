@@ -33,6 +33,8 @@ public struct GatoMacro: PeerMacro {
         providingPeersOf declaration: some SwiftSyntax.DeclSyntaxProtocol,
         in context: some SwiftSyntaxMacros.MacroExpansionContext
     ) throws -> [SwiftSyntax.DeclSyntax] {
+        let gatoDefaults: Bool = node.gatoDefaults
+        
         guard let funcDecl = declaration.as(FunctionDeclSyntax.self) else {
             throw GatoError.onlyApplicableToFunction
         }
@@ -41,32 +43,18 @@ public struct GatoMacro: PeerMacro {
             throw GatoError.onlyApplicableToPrivateFunction
         }
         
-        var signature = funcDecl.signature
+        var newFuncDecl = FunctionDeclSyntax(
+            name: funcDecl.name,
+            genericParameterClause: funcDecl.genericParameterClause,
+            signature: funcDecl.signature,
+            body: funcDecl.body
+        )
         
-        let gatoDefaults = funcDecl.gatoDefaults
-        if signature.parameterClause.parameters.hasFile == false {
-            if var lastParam = signature.parameterClause.parameters.last {
-                signature.parameterClause.parameters = FunctionParameterListSyntax(signature.parameterClause.parameters.dropLast())
-                lastParam.trailingComma = .commaToken()
-                signature.parameterClause.parameters.append(lastParam)
-                
-            }
-            signature.parameterClause.parameters.append(
-                makeFileParameter(setDefaultValue: gatoDefaults)
-            )
-        }
-        
-        if signature.parameterClause.parameters.hasLine == false {
-            signature.parameterClause.parameters.append(
-                makeLineParameter(setDefaultValue: gatoDefaults)
-            )
-        }
-        
-        let body = funcDecl.body
+        newFuncDecl.addFileLineToSignature(gatoDefaults: gatoDefaults)
         
         var declarationString: String?
         
-        body?.statements.fileAndLineFunctions({ functionCallExprSyntax in
+        funcDecl.body?.statements.fileAndLineFunctions({ functionCallExprSyntax in
             let position = functionCallExprSyntax.position.utf8Offset
             let endPosition = functionCallExprSyntax.endPosition.utf8Offset
             
@@ -86,36 +74,58 @@ public struct GatoMacro: PeerMacro {
         })
         
         guard let declarationString else {
-            return [
-                DeclSyntax(
-                    FunctionDeclSyntax(
-                        name: funcDecl.name,
-                        genericParameterClause: funcDecl.genericParameterClause,
-                        signature: signature,
-                        body: body
-                    )
-                )
-            ]
-        }
+            return [DeclSyntax(newFuncDecl)]}
         
         let newBody = DeclSyntax(stringLiteral: declarationString)
             .as(FunctionDeclSyntax.self)?
             .body
         
-        return [
-            DeclSyntax(
-                FunctionDeclSyntax(
-                    name: funcDecl.name,
-                    genericParameterClause: funcDecl.genericParameterClause,
-                    signature: signature,
-                    body: newBody
-                )
-            )
-        ]
+        newFuncDecl.body = newBody
+        
+        return [DeclSyntax(newFuncDecl)]
     }
 }
 
-extension CodeBlockItemListSyntax {
+private extension AttributeSyntax {
+    var gatoDefaults: Bool {
+        guard let gatoDefaultsBooleanText = arguments?
+                .as(LabeledExprListSyntax.self)?
+                .first(where: { $0.label?.text == "defaults"})?
+                .expression
+                .as(BooleanLiteralExprSyntax.self)?
+                .literal
+                .text,
+              let gatoDefaults = Bool(gatoDefaultsBooleanText)
+        else {
+            return true
+        }
+        return gatoDefaults
+    }
+}
+
+private extension FunctionDeclSyntax {
+    mutating func addFileLineToSignature(gatoDefaults: Bool) {
+        if signature.parameterClause.parameters.hasFile == false {
+            if var lastParam = signature.parameterClause.parameters.last {
+                signature.parameterClause.parameters = FunctionParameterListSyntax(signature.parameterClause.parameters.dropLast())
+                lastParam.trailingComma = .commaToken()
+                signature.parameterClause.parameters.append(lastParam)
+                
+            }
+            signature.parameterClause.parameters.append(
+                makeFileParameter(setDefaultValue: gatoDefaults)
+            )
+        }
+        
+        if signature.parameterClause.parameters.hasLine == false {
+            signature.parameterClause.parameters.append(
+                makeLineParameter(setDefaultValue: gatoDefaults)
+            )
+        }
+    }
+}
+
+private extension CodeBlockItemListSyntax {
     mutating func addFileLineToStatements() throws {
         var statements = CodeBlockItemListSyntax()
         for statement in self {
@@ -176,8 +186,6 @@ extension CodeBlockItemListSyntax {
     }
 }
 
-// TODO: XCTSkip.init(String?, file: StaticString, line: UInt
-
 private let fileLineFunctionNames: Set<String> = [
     // Boolean Assertions - https://developer.apple.com/documentation/xctest/boolean_assertions
     "XCTAssert",
@@ -209,6 +217,7 @@ private let fileLineFunctionNames: Set<String> = [
     "XCTFail",
     
     // Methods for Skipping Tests - https://developer.apple.com/documentation/xctest/methods_for_skipping_tests
+    "XCTSkip", // need to test, this is an .init
     "XCTSkipIf",
     "XCTSkipUnless"
 ]
@@ -230,31 +239,6 @@ private extension LabeledExprListSyntax {
     
     var hasLine: Bool {
         !allSatisfy { $0.label != "line" }
-    }
-}
-
-private extension FunctionDeclSyntax {
-    var gatoDefaults: Bool {
-        guard let gatoAttribute = attributes
-            .first (where: {
-                $0.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Gato"
-            })?
-            .as(AttributeSyntax.self) else {
-            return true
-        }
-        
-        guard let defaultsArgument = gatoAttribute
-            .arguments?
-            .as(LabeledExprListSyntax.self)?
-            .compactMap({ $0.as(LabeledExprSyntax.self) })
-            .first(where: { $0.label?.text == "defaults" }),
-              let useDefaultsString = defaultsArgument
-            .expression
-            .as(BooleanLiteralExprSyntax.self)?
-            .literal.text else {
-            return true
-        }
-        return Bool(useDefaultsString) ?? true
     }
 }
 

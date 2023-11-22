@@ -153,37 +153,39 @@ final class GatoTests: XCTestCase {
     }
     
     func testGatoMemoryLeakTracker() throws {
-        throw XCTSkip("not implemented")
+//        throw XCTSkip("not implemented")
         assertMacroExpansion(
-            """
-            extension XCTestCase {
-                @Gato(defaults: true)
-                private func trackForMemoryLeaks(_ instance: AnyObject) {
-                    addTeardownBlock { [weak instance] in
-                        XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
-                    }
-                }
+"""
+extension XCTestCase {
+    @Gato(defaults: true)
+    private func trackForMemoryLeaks(_ instance: AnyObject) {
+        addTeardownBlock { [weak instance] in
+            XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
+        }
+    }
+}
+"""
+            ,
+            expandedSource:
+"""
+extension XCTestCase {
+    private func trackForMemoryLeaks(_ instance: AnyObject) {
+        addTeardownBlock { [weak instance] in
+            XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
+        }
+    }
+
+    func trackForMemoryLeaks(_ instance: AnyObject, file: StaticString = #file, line: UInt = #line) {
+            addTeardownBlock { [weak instance] in
+                XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.", file: file, line: line)
             }
-            """,
-            expandedSource: """
-            extension XCTestCase {
-                private func trackForMemoryLeaks(_ instance: AnyObject) {
-                    addTeardownBlock { [weak instance] in
-                        XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.")
-                    }
-                }
-            
-                func trackForMemoryLeaks(_ instance: AnyObject, file: StaticString = #file, line: UInt = #line) {
-                    addTeardownBlock { [weak instance] in
-                        XCTAssertNil(instance, "Instance should have been deallocated. Potential memory leak.", file: file, line: line)
-                    }
-                }
-            }
-            """,
+        }
+}
+"""
+            ,
             macros: testMacros
         )
     }
-
 
     func testGatoMacroWithGenericFunction() throws {
         throw XCTSkip("not implemented")

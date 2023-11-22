@@ -1,4 +1,5 @@
 import SwiftCompilerPlugin
+import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
@@ -61,19 +62,45 @@ public struct GatoMacro: PeerMacro {
             )
         }
         
-        var body = funcDecl.body
+        let body = funcDecl.body
         
-        try body?.statements.addFileLineToStatements()
+        var declarationString: String?
+        
+        body?.statements.fileAndLineFunctions({ functionCallExprSyntax in
+            let position = functionCallExprSyntax.position.utf8Offset
+            let endPosition = functionCallExprSyntax.endPosition.utf8Offset
             
-        body?.statements.fileAndLineFunctions { functionCallExprSyntax in
+            var bytes = declaration.syntaxTextBytes
+            
             var functionCallExprSyntax = functionCallExprSyntax
             try? addFileLine(funcCall: &functionCallExprSyntax)
             
-            guard let item = functionCallExprSyntax.as(CodeBlockItemSyntax.Item.self) else { return }
+            let newFuncBytes = functionCallExprSyntax.syntaxTextBytes
             
-            let itemSyntax = CodeBlockItemSyntax(item: item)
-            print(itemSyntax)
+            bytes.replaceSubrange(Range<Int>.init(uncheckedBounds: (lower: position, upper: endPosition)), with: newFuncBytes)
+            
+            guard let newString = String(data: Data(bytes), encoding: .utf8) else {
+                return
+            }
+            declarationString = newString
+        })
+        
+        guard let declarationString else {
+            return [
+                DeclSyntax(
+                    FunctionDeclSyntax(
+                        name: funcDecl.name,
+                        genericParameterClause: funcDecl.genericParameterClause,
+                        signature: signature,
+                        body: body
+                    )
+                )
+            ]
         }
+        
+        let newBody = DeclSyntax(stringLiteral: declarationString)
+            .as(FunctionDeclSyntax.self)?
+            .body
         
         return [
             DeclSyntax(
@@ -81,7 +108,7 @@ public struct GatoMacro: PeerMacro {
                     name: funcDecl.name,
                     genericParameterClause: funcDecl.genericParameterClause,
                     signature: signature,
-                    body: body
+                    body: newBody
                 )
             )
         ]

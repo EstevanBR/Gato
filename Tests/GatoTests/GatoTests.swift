@@ -221,4 +221,39 @@ extension UIResponder {
             macros: testMacros
         )
     }
+    
+    func testGatoMacroWithGenericFunctionWithDefaults() throws {
+        assertMacroExpansion(
+"""
+extension UIResponder {
+    @Gato(defaults: true)
+    private func findChild<Success: UIAccessibilityIdentification>(withA11yId a11y: String) throws -> Success {
+        let child = Mirror(reflecting: self).children.compactMap { $0.value as? Success }.first { $0.accessibilityIdentifier == a11y }
+        return try XCTUnwrap(child, "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)")
+    }
+}
+"""
+            ,
+            expandedSource:
+"""
+extension UIResponder {
+    private func findChild<Success: UIAccessibilityIdentification>(withA11yId a11y: String) throws -> Success {
+        let child = Mirror(reflecting: self).children.compactMap { $0.value as? Success }.first { $0.accessibilityIdentifier == a11y }
+        return try XCTUnwrap(child, "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)")
+    }
+
+    func findChild<Success: UIAccessibilityIdentification>(withA11yId a11y: String, file: StaticString = #file, line: UInt = #line) throws -> Success {
+            let child = Mirror(reflecting: self).children.compactMap {
+                $0.value as? Success
+            } .first {
+                $0.accessibilityIdentifier == a11y
+            }
+            return try XCTUnwrap(child, "Did not find element of type: \\(Success.self) with accessibility identifier: \\(a11y)", file: file, line: line)
+        }
+}
+"""
+            ,
+            macros: testMacros
+        )
+    }
 }
